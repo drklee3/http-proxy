@@ -6,6 +6,7 @@ use hyper::{
     body::Body,
     server::{conn::AddrStream, Server},
     service, Request, Response,
+    header::CONTENT_TYPE
 };
 use snafu::ResultExt;
 use std::{
@@ -20,7 +21,7 @@ use tracing_log::LogTracer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 use twilight_http::{
-    client::Client, request::Request as TwilightRequest, routing::Path, API_VERSION,
+    client::Client, request::{Request as TwilightRequest, multipart::Form}, routing::Path, API_VERSION
 };
 
 #[cfg(feature = "expose-metrics")]
@@ -198,12 +199,44 @@ async fn handle_request(
             return Err(RequestError::NoPath { uri });
         }
     };
-    let body = if bytes.is_empty() { None } else { Some(bytes) };
+
+    let (body, form) = match dbg!(headers.get(CONTENT_TYPE).and_then(|v| v.to_str().ok())) {
+        Some(value) if dbg!(value.starts_with("multipart/form-data")) => {
+            // Lots of trims in case some clients have weird spacing
+            let boundary = value
+                .trim_start_matches("multipart/form-data;")
+                .trim_start()
+                .trim_start_matches("boundary=")
+                .trim();
+
+            // If there is anything after the boundary
+            let boundary = if let Some(index) = boundary.find(';') {
+                boundary[..index].as_bytes()
+            } else {
+                boundary.as_bytes()
+            };
+
+            let mut form = Form::new();
+            form.bytes(&bytes);
+            form.set_boundary(&boundary);
+
+            (None, Some(form))
+        }
+        // Has body but not form
+        Some(_) if !bytes.is_empty() => {
+            (Some(bytes), None)
+        }
+        // No body and no form
+        _ => {
+            (None, None)
+        }
+    };
+
     let p = path_name(&path);
     let m = method.to_string();
     let raw_request = TwilightRequest {
         body,
-        form: None,
+        form,
         headers: Some(headers),
         method,
         path,
