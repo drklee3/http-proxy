@@ -4,9 +4,9 @@ use error::{ChunkingRequest, InvalidPath, RequestError, RequestIssue};
 use http::request::Parts;
 use hyper::{
     body::Body,
+    header::CONTENT_TYPE,
     server::{conn::AddrStream, Server},
     service, Request, Response,
-    header::CONTENT_TYPE
 };
 use snafu::ResultExt;
 use std::{
@@ -21,11 +21,14 @@ use tracing_log::LogTracer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 use twilight_http::{
-    client::Client, request::{Request as TwilightRequest, multipart::Form}, routing::Path, API_VERSION
+    client::Client,
+    request::{multipart::Form, Request as TwilightRequest},
+    routing::Path,
+    API_VERSION,
 };
 
 #[cfg(feature = "expose-metrics")]
-use std::{future::Future, pin::Pin, time::Instant, sync::Arc};
+use std::{future::Future, pin::Pin, sync::Arc, time::Instant};
 
 #[cfg(feature = "expose-metrics")]
 use lazy_static::lazy_static;
@@ -223,13 +226,9 @@ async fn handle_request(
             (None, Some(form))
         }
         // Has body but not form
-        Some(_) if !bytes.is_empty() => {
-            (Some(bytes), None)
-        }
+        Some(_) if !bytes.is_empty() => (Some(bytes), None),
         // No body and no form
-        _ => {
-            (None, None)
-        }
+        _ => (None, None),
     };
 
     let p = path_name(&path);
@@ -263,7 +262,7 @@ async fn handle_request(
 
 #[cfg(feature = "expose-metrics")]
 fn handle_metrics(
-    handle: Arc<PrometheusHandle>
+    handle: Arc<PrometheusHandle>,
 ) -> Pin<Box<dyn Future<Output = Result<Response<Body>, RequestError>> + Send>> {
     Box::pin(async move {
         Ok(Response::builder()
