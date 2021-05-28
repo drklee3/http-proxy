@@ -1,14 +1,13 @@
 mod error;
 
-use error::{ChunkingRequest, InvalidPath, InvalidMethod, RequestError, RequestIssue};
-use http::request::Parts;
+use error::{ChunkingRequest, InvalidPath, RequestError, RequestIssue};
+use http::{request::Parts, Method as HttpMethod};
 use hyper::{
     body::Body,
     server::{conn::AddrStream, Server},
     service, Request, Response,
-    Method,
 };
-use snafu::{ResultExt, OptionExt};
+use snafu::ResultExt;
 use std::{
     convert::TryFrom,
     env,
@@ -18,14 +17,16 @@ use std::{
 };
 use tracing::{debug, error, info, trace};
 use tracing_log::LogTracer;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use twilight_http::{
-    client::Client, request::{Request as TwilightRequest, Method as TwilightMethod}, routing::Path, API_VERSION,
+    client::Client,
+    request::{Method, Request as TwilightRequest},
+    routing::Path,
+    API_VERSION,
 };
 
 #[cfg(feature = "expose-metrics")]
-use std::{future::Future, pin::Pin, time::Instant, sync::Arc};
+use std::{future::Future, pin::Pin, sync::Arc, time::Instant};
 
 #[cfg(feature = "expose-metrics")]
 use lazy_static::lazy_static;
@@ -163,18 +164,17 @@ fn path_name(path: &Path) -> &'static str {
         Path::VoiceRegions => "Voice region list",
         Path::WebhooksId(..) => "Webhook",
         Path::OauthApplicationsMe => "Current application info",
+        Path::ChannelsIdMessagesIdCrosspost(..) => "Crosspost message",
+        Path::ChannelsIdRecipients(..) => "Channel recipients",
+        Path::ChannelsIdFollowers(..) => "Channel followers",
+        Path::GuildsIdBansId(..) => "Specific guild ban",
+        Path::GuildsIdMembersSearch(..) => "Search guild members",
+        Path::GuildsIdTemplates(..) => "Guild templates",
+        Path::GuildsIdTemplatesCode(..) => "Specific guild template",
+        Path::GuildsIdVoiceStates(..) => "Guild voice states",
+        Path::GuildsIdWelcomeScreen(..) => "Guild welcome screen",
+        Path::WebhooksIdTokenMessagesId(..) => "Specific webhook message",
         _ => "Unknown path!",
-    }
-}
-
-fn to_twilight_method(hyper_method: Method) -> Option<TwilightMethod> {
-    match hyper_method {
-        Method::DELETE => Some(TwilightMethod::Delete),
-        Method::GET => Some(TwilightMethod::Get),
-        Method::PATCH => Some(TwilightMethod::Patch),
-        Method::POST => Some(TwilightMethod::Post),
-        Method::PUT => Some(TwilightMethod::Put),
-        _ => None,
     }
 }
 
@@ -193,14 +193,24 @@ async fn handle_request(
         ..
     } = parts;
 
-    let twilight_method = to_twilight_method(method.clone()).context(InvalidMethod)?;
+    let (method, m) = match method {
+        HttpMethod::DELETE => (Method::Delete, "DELETE"),
+        HttpMethod::GET => (Method::Get, "GET"),
+        HttpMethod::PATCH => (Method::Patch, "PATCH"),
+        HttpMethod::POST => (Method::Post, "POST"),
+        HttpMethod::PUT => (Method::Put, "PUT"),
+        _ => {
+            error!("Unsupported HTTP method in request");
+            return Err(RequestError::InvalidMethod { method });
+        }
+    };
 
     let trimmed_path = if uri.path().starts_with(&api_url) {
         uri.path().replace(&api_url, "")
     } else {
         uri.path().to_owned()
     };
-    let path = Path::try_from((twilight_method.clone(), trimmed_path.as_str())).context(InvalidPath)?;
+    let path = Path::try_from((method, trimmed_path.as_ref())).context(InvalidPath)?;
 
     let bytes = (hyper::body::to_bytes(body).await.context(ChunkingRequest)?).to_vec();
 
@@ -214,12 +224,11 @@ async fn handle_request(
     };
     let body = if bytes.is_empty() { None } else { Some(bytes) };
     let p = path_name(&path);
-    let m = method.to_string();
     let raw_request = TwilightRequest {
         body,
         form: None,
         headers: Some(headers),
-        method: twilight_method,
+        method,
         path,
         path_str: path_and_query,
         use_authorization_token: true,
@@ -245,7 +254,7 @@ async fn handle_request(
 
 #[cfg(feature = "expose-metrics")]
 fn handle_metrics(
-    handle: Arc<PrometheusHandle>
+    handle: Arc<PrometheusHandle>,
 ) -> Pin<Box<dyn Future<Output = Result<Response<Body>, RequestError>> + Send>> {
     Box::pin(async move {
         Ok(Response::builder()
