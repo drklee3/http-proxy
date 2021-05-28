@@ -1,13 +1,14 @@
 mod error;
 
-use error::{ChunkingRequest, InvalidPath, RequestError, RequestIssue};
+use error::{ChunkingRequest, InvalidPath, InvalidMethod, RequestError, RequestIssue};
 use http::request::Parts;
 use hyper::{
     body::Body,
     server::{conn::AddrStream, Server},
     service, Request, Response,
+    Method,
 };
-use snafu::ResultExt;
+use snafu::{ResultExt, OptionExt};
 use std::{
     convert::TryFrom,
     env,
@@ -20,7 +21,7 @@ use tracing_log::LogTracer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 use twilight_http::{
-    client::Client, request::Request as TwilightRequest, routing::Path, API_VERSION,
+    client::Client, request::{Request as TwilightRequest, Method as TwilightMethod}, routing::Path, API_VERSION,
 };
 
 #[cfg(feature = "expose-metrics")]
@@ -166,6 +167,17 @@ fn path_name(path: &Path) -> &'static str {
     }
 }
 
+fn to_twilight_method(hyper_method: Method) -> Option<TwilightMethod> {
+    match hyper_method {
+        Method::DELETE => Some(TwilightMethod::Delete),
+        Method::GET => Some(TwilightMethod::Get),
+        Method::PATCH => Some(TwilightMethod::Patch),
+        Method::POST => Some(TwilightMethod::Post),
+        Method::PUT => Some(TwilightMethod::Put),
+        _ => None,
+    }
+}
+
 async fn handle_request(
     client: Client,
     request: Request<Body>,
@@ -181,12 +193,14 @@ async fn handle_request(
         ..
     } = parts;
 
+    let twilight_method = to_twilight_method(method.clone()).context(InvalidMethod)?;
+
     let trimmed_path = if uri.path().starts_with(&api_url) {
         uri.path().replace(&api_url, "")
     } else {
         uri.path().to_owned()
     };
-    let path = Path::try_from((method.clone(), trimmed_path.as_ref())).context(InvalidPath)?;
+    let path = Path::try_from((twilight_method.clone(), trimmed_path.as_str())).context(InvalidPath)?;
 
     let bytes = (hyper::body::to_bytes(body).await.context(ChunkingRequest)?).to_vec();
 
@@ -205,9 +219,10 @@ async fn handle_request(
         body,
         form: None,
         headers: Some(headers),
-        method,
+        method: twilight_method,
         path,
         path_str: path_and_query,
+        use_authorization_token: true,
     };
 
     #[cfg(feature = "expose-metrics")]

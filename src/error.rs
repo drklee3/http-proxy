@@ -8,6 +8,7 @@ use twilight_http::{error::Error as TwilightError, routing::PathParseError};
 pub enum RequestError {
     ChunkingRequest { source: HyperError },
     InvalidPath { source: PathParseError },
+    InvalidMethod {},
     MakingResponseBody { source: HttpError },
     NoPath { uri: Uri },
     RequestIssue { source: TwilightError },

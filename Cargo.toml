@@ -5,7 +5,6 @@ name = "twilight-http-proxy"
 version = "0.1.0"
 
 [dependencies]
-twilight-http = { version = "0.3.6", default-features = false, features = ["rustls"] }
 hyper = { version = "0.14", features = ["tcp", "server", "http1", "http2"] }
 http = "0.2"
 tracing = "0.1"
@@ -18,6 +17,12 @@ tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros"] }
 metrics = { version = "0.14", optional = true }
 metrics-exporter-prometheus = { version = "0.3", optional = true }
 lazy_static = {version = "1.4", optional = true }
+
+[dependencies.twilight-http]
+git = "https://github.com/drklee3/twilight/"
+rev = "e776ccb0675674c8791ae1e906fbe8de7f343c14"
+default-features = false
+features = ["rustls"]
 
 [features]
 default = []
