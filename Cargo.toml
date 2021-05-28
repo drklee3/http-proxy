@@ -22,7 +22,7 @@ lazy_static = { version = "1.4", optional = true }
 git = "https://github.com/drklee3/twilight/"
 rev = "e776ccb0675674c8791ae1e906fbe8de7f343c14"
 default-features = false
-features = ["rustls"]
+features = ["rustls-webpki-roots"]
 
 [features]
 default = []

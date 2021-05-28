@@ -89,7 +89,6 @@ FROM scratch
 
 COPY --from=dumb-init /dumb-init /dumb-init
 COPY --from=build /twilight-http-proxy /twilight-http-proxy
-COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 ENTRYPOINT ["./dumb-init", "--"]
 CMD ["./twilight-http-proxy"]
