@@ -19,17 +19,17 @@ RUN apk upgrade && \
 
 RUN source $HOME/.cargo/env && \
     if [ "$RUST_TARGET" != $(rustup target list --installed) ]; then \
-        rustup target add $RUST_TARGET && \
-        curl -L "https://musl.cc/$MUSL_TARGET-cross.tgz" -o /toolchain.tgz && \
-        tar xf toolchain.tgz && \
-        ln -s "/$MUSL_TARGET-cross/bin/$MUSL_TARGET-gcc" "/usr/bin/$MUSL_TARGET-gcc" && \
-        ln -s "/$MUSL_TARGET-cross/bin/$MUSL_TARGET-ld" "/usr/bin/$MUSL_TARGET-ld" && \
-        ln -s "/$MUSL_TARGET-cross/bin/$MUSL_TARGET-strip" "/usr/bin/actual-strip" && \
-        mkdir -p /app/.cargo && \
-        echo -e "[target.$RUST_TARGET]\nlinker = \"$MUSL_TARGET-gcc\"" > /app/.cargo/config; \
+    rustup target add $RUST_TARGET && \
+    curl -L "https://musl.cc/$MUSL_TARGET-cross.tgz" -o /toolchain.tgz && \
+    tar xf toolchain.tgz && \
+    ln -s "/$MUSL_TARGET-cross/bin/$MUSL_TARGET-gcc" "/usr/bin/$MUSL_TARGET-gcc" && \
+    ln -s "/$MUSL_TARGET-cross/bin/$MUSL_TARGET-ld" "/usr/bin/$MUSL_TARGET-ld" && \
+    ln -s "/$MUSL_TARGET-cross/bin/$MUSL_TARGET-strip" "/usr/bin/actual-strip" && \
+    mkdir -p /app/.cargo && \
+    echo -e "[target.$RUST_TARGET]\nlinker = \"$MUSL_TARGET-gcc\"" > /app/.cargo/config; \
     else \
-        echo "skipping toolchain as we are native" && \
-        ln -s /usr/bin/strip /usr/bin/actual-strip; \
+    echo "skipping toolchain as we are native" && \
+    ln -s /usr/bin/strip /usr/bin/actual-strip; \
     fi
 
 WORKDIR /app
@@ -43,11 +43,11 @@ RUN mkdir src/
 RUN echo 'fn main() {}' > ./src/main.rs
 RUN source $HOME/.cargo/env && \
     if [ "$FEATURES" == "" ]; then \
-      cargo build --release \
-          --target="$RUST_TARGET"; \
+    cargo build --release \
+    --target="$RUST_TARGET"; \
     else \
-      cargo build --release \
-          --target="$RUST_TARGET" --features="$FEATURES"; \
+    cargo build --release \
+    --target="$RUST_TARGET" --features="$FEATURES"; \
     fi
 
 # Now, delete the fake source and copy in the actual source. This allows us to
@@ -65,11 +65,11 @@ COPY ./src ./src
 
 RUN source $HOME/.cargo/env && \
     if [ "$FEATURES" == "" ]; then \
-      cargo build --release \
-          --target="$RUST_TARGET"; \
+    cargo build --release \
+    --target="$RUST_TARGET"; \
     else \
-      cargo build --release \
-          --target="$RUST_TARGET" --features="$FEATURES"; \
+    cargo build --release \
+    --target="$RUST_TARGET" --features="$FEATURES"; \
     fi && \
     cp target/$RUST_TARGET/release/twilight-http-proxy /twilight-http-proxy && \
     actual-strip /twilight-http-proxy
@@ -89,6 +89,7 @@ FROM scratch
 
 COPY --from=dumb-init /dumb-init /dumb-init
 COPY --from=build /twilight-http-proxy /twilight-http-proxy
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 ENTRYPOINT ["./dumb-init", "--"]
 CMD ["./twilight-http-proxy"]
