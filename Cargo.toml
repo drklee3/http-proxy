@@ -12,12 +12,17 @@ tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
 tracing = "0.1"
 tracing-log = "0.1"
 tracing-subscriber = { version = "0.2", features = ["fmt", "registry"] }
-twilight-http = { version = "0.6.1", default-features = false, features = ["rustls-webpki-roots"] }
 
 # Only used by the `expose-metrics` feature.
 metrics = { version = "0.17", optional = true }
 metrics-exporter-prometheus = { version = "0.6", optional = true }
 lazy_static = { version = "1.4", optional = true }
+
+[dependencies.twilight-http]
+git = "https://github.com/twilight-rs/twilight"
+branch = "feature/threads"
+default-features = false
+features = ["rustls-webpki-roots"]
 
 [features]
 expose-metrics = ["metrics", "metrics-exporter-prometheus", "lazy_static"]
